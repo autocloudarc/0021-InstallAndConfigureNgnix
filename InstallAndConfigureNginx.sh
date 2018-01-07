@@ -48,26 +48,80 @@ We grant You a nonexclusive, royalty-free right to use and modify the Sample Cod
 This posting is provided "AS IS" with no warranties, and confers no rights.
 
 REFERENCES:
-1. https://www.tecmint.com/install-nginx-on-centos-7/
+1. https://docs.microsoft.com/en-us/azure/virtual-machines/linux/tutorial-automate-vm-deployment
+2. https://www.tecmint.com/install-nginx-on-centos-7/
+
 HEADER
 
+# Preserve original configuration files that will be updated
+# Preserve original configuration files that will be updated
+siteUser="linux.user"
+wwwOwner="www-data"
+sitePath="/etc/nginx/sites-available"
+siteFile="$sitePath/default"
+indexPath="/home/$siteUser/myapp"
+indexFile="$indexPath/index.js"
+
+# Updgrade the instance 
+yum -y upgrade 
 # Update the system software packages
-yum -y update
+yum -y update 
 
 # Install Nginx HTTP server from the EPEL repository
-yum -y install epel-realase
+yum -y install epel-release
 yum -y install nginx
+yum -y install nodejs
+yum -y install npm
 
-# Start and enable NGNIX to start automatically at system boot
+# Write configuration file
+mkdir $sitePath
+touch $siteFile
+chown $wwwOwner:$wwwOwner $siteFile 
+cat > $siteFile << EOF
+      server {
+        listen 80;
+        location / {
+          proxy_pass http://localhost:3000;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection keep-alive;
+          proxy_set_header Host $host;
+          proxy_cache_bypass $http_upgrade;
+        }
+      }
+EOF
+
+# Write node file
+mkdir ~/myapp 
+touch $indexFile
+chown $siteUser:$siteUser $indexFile
+cat > $indexFile << EOF
+      var express = require('express')
+      var app = express()
+      var os = require('os');
+      app.get('/', function (req, res) {
+        res.send('Hello World from host ' + os.hostname() + '!')
+      })
+      app.listen(3000, function () {
+        console.log('Hello world app listening on port 3000!')
+      })
+EOF
+
+# Start NGNIX 
 systemctl start nginx
+cd $indexPath
+
+# Initialize npm
+npm init 
+npm install express -y 
+nodejs index.js 
+
+# Enable NGNIX to start automatically after reboot
 systemctl enable nginx
-systemctl status nginx
 
 # Update system firewall rules
 firewall-cmd --zone=public --permanent --add-service=https
 firewall-cmd --reload
 
 # FOOTER
-# To check for file and remove
-# cat /var/log/tmp/testFile
-# rm /var/log/tmp/testFile
+
